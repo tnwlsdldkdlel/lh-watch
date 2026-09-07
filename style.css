@@ -102,3 +102,7 @@ dialog::backdrop { background: rgba(20, 24, 30, .45); }
 .past .none td, .matrix .none td { color: var(--mute); }
 .matrix .none .rate { color: var(--mute); }
 .note .unitbtn { margin-left: 8px; }
+
+.mv { font-size: 11px; margin-left: 5px; font-family: var(--mono); }
+.mv.up { color: var(--ok); }
+.mv.down { color: var(--over); }

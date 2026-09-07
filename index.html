@@ -183,6 +183,26 @@ function perHour(pts) {
   return Math.round((now.v - base.v) / hours);
 }
 
+// 5분 전 스냅샷 기준 순위. 수집 주기가 5분이라 사실상 직전 기록과 비교하는 셈이다.
+// 모집인원은 공고 중 고정이라 현재 값으로 경쟁률을 낸다.
+function prevRanks(units, nowT) {
+  const snaps = hist?.snaps ?? [];
+  const base = [...snaps].reverse().find((s) => Date.parse(s.t) <= nowT - 3e5);
+  if (!base) return null;
+  const quota = new Map(units.map((u) => [u.dong, u.quota]));
+  const order = (hist.names ?? [])
+    .map((n, i) => ({ n, r: rate(base.u[i] ?? 0, quota.get(n) ?? 0) }))
+    .filter((x) => quota.has(x.n))
+    .sort((a, b) => b.r - a.r);
+  return new Map(order.map((x, i) => [x.n, i + 1]));
+}
+
+const move = (prev, dong, i) => {
+  const d = prev?.get(dong) - (i + 1);
+  if (!d) return '';
+  return `<span class="mv ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲' : '▼'}${Math.abs(d)}</span>`;
+};
+
 function spark(pts, color) {
   if (pts.length < 2) return '<span class="speed">–</span>';
   const w = 70, h = 20;
@@ -221,6 +241,7 @@ function render(d) {
 
   const sorted = [...d.units].sort((a, b) => rate(b.applied, b.quota) - rate(a.applied, a.quota));
   const rows = sorted;
+  const prev = prevRanks(d.units, nowT);
 
   const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
@@ -244,7 +265,7 @@ function render(d) {
         const sp = perHour(pts);
         const color = r >= 2 ? css('--over') : r >= 1 ? css('--hot') : css('--cool');
         return `<tr>
-          <td class="rank">${i + 1}</td>
+          <td class="rank">${i + 1}${move(prev, u.dong, i)}</td>
           <td><span class="name">${u.dong ?? ''}</span><span class="sido">${(u.sido ?? '').replace('경기도', '')}</span></td>
           <td>${houses?.[u.dong]?.length ? `<button class="unitbtn" onclick="openHouses('${u.dong}')">${houses[u.dong].length}호</button>` : '<span class="speed">–</span>'}</td>
           <td>${fmt(u.quota)}</td>
