@@ -13,12 +13,10 @@ try {
 
 const data = await snapshot();
 
-// 값이 안 변해도 시간 조건(마감 임박)은 따로 걸리므로 기록 여부와 무관하게 먼저 본다.
+// 값이 안 변해도 시간 조건(정시 현황·마감 임박)은 걸리므로 기록 여부와 무관하게 먼저 본다.
 const alerts = checkAlerts(hist, data);
-if (alerts.length) {
-  await send(alerts);
-  for (const a of alerts) hist.fired[a.key] = data.at;
-}
+await send(alerts);
+for (const a of alerts) Object.assign(hist, a.state);
 
 for (const u of data.units) if (!hist.names.includes(u.dong)) hist.names.push(u.dong);
 

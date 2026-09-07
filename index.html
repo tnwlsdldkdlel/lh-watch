@@ -131,14 +131,15 @@ function series(dong, now) {
 }
 const totalSeries = (now) => withNow((hist?.snaps ?? []).map((s) => ({ t: Date.parse(s.t), v: s.a })), now);
 
-// 한 시간 전 값과의 차이. 스냅샷이 1시간치보다 짧으면 가진 만큼으로 환산한다.
+// 한 시간 전 값과의 차이. 기록이 1시간치보다 짧으면 가진 만큼으로 환산한다.
 function perHour(pts) {
   if (pts.length < 2) return null;
   const now = pts.at(-1);
   const target = now.t - 3.6e6;
   const base = pts.find((p) => p.t >= target) ?? pts[0];
   const hours = (now.t - base.t) / 3.6e6;
-  if (hours < 0.08) return null; // 5분도 안 되는 구간으로 시간당을 말하면 과장된다
+  // 짧은 구간을 시간당으로 곱하면 크게 부풀려진다. 10분에 1건이 "+6" 으로 보이던 문제.
+  if (hours < 0.5) return null;
   return Math.round((now.v - base.v) / hours);
 }
 

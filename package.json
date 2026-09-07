@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "watch": "node lh.mjs 5"
+    "watch": "node lh.mjs 5",
+    "test": "node test-alert.mjs"
   }
 }
