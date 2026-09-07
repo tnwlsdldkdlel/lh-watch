@@ -54,7 +54,7 @@
   .sido { color: var(--mute); font-size: 12px; font-weight: 400; margin-left: 6px; }
   .delta { color: var(--ok); font-size: 12px; }
   .speed { color: var(--mute); font-size: 13px; }
-  .speed.up { color: var(--fg); }
+  .speed.up { color: var(--ok); font-weight: 700; font-size: 14px; }
   .rate { font-weight: 650; }
   .rate.over { color: var(--over); }
   .rate.hot { color: var(--hot); }
@@ -282,7 +282,7 @@ function render(d) {
           <td>${houses?.[u.dong]?.length ? `<button class="unitbtn" onclick="openHouses('${u.dong}')">${houses[u.dong].length}호</button>` : '<span class="speed">–</span>'}</td>
           <td>${fmt(u.quota)}</td>
           <td>${fmt(u.applied)}</td>
-          <td class="speed ${sp ? 'up' : ''}">${sp == null ? '–' : sp > 0 ? `+${sp}` : sp}</td>
+          <td class="speed ${sp > 0 ? 'up' : ''}">${sp == null ? '–' : sp > 0 ? `+${sp}` : sp}</td>
           <td class="rate ${cls(r)}">${r.toFixed(2)}</td>
           <td class="sparkcell">${spark(pts, color)}</td>
           <td class="barcell"><div class="bar ${cls(r)}"><i style="width:${Math.min(100, r * 50)}%"></i></div></td>
