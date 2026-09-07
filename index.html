@@ -101,6 +101,9 @@
   .dlg-body table { margin-top: 0; min-width: 640px; }
   .dlg-body th { position: sticky; top: 0; background: var(--panel); z-index: 1; padding-top: 12px; }
   .addr { color: var(--mute); font-size: 12px; }
+  .dlg-body tbody + tbody .grp td { padding-top: 18px; }
+  .grp td { text-align: left; font-family: inherit; border-bottom: 1px solid var(--line); }
+  .bldg { font-weight: 650; margin-right: 8px; }
 </style>
 </head>
 <body>
@@ -151,18 +154,35 @@ function openHouses(dong) {
   if (!list?.length) return;
   $('dlg-title').textContent = dong;
   $('dlg-meta').textContent = `공급 ${list.length}호 · 임대조건은 소득 80% 이하 기준`;
+  // 같은 건물에서 호수만 다른 것을 별개 매물처럼 늘어놓으면 물건 수를 오해한다.
+  const byAddr = new Map();
+  for (const h of list) {
+    if (!byAddr.has(h.addr)) byAddr.set(h.addr, []);
+    byAddr.get(h.addr).push(h);
+  }
+
   $('dlg-body').innerHTML = `<table>
-    <thead><tr><th>순번</th><th>주소</th><th>호</th><th>전용</th><th>방</th><th>층</th><th>보증금</th><th>월세</th></tr></thead>
-    <tbody>${list.map((h) => `<tr>
-      <td>${h.no}</td>
-      <td><span class="addr">${h.addr}</span></td>
-      <td>${h.ho}</td>
-      <td>${h.area}㎡</td>
-      <td>${h.rooms}</td>
-      <td>${h.floor}</td>
-      <td>${man(h.deposit)}</td>
-      <td>${h.rent.toLocaleString('ko-KR')}</td>
-    </tr>`).join('')}</tbody>
+    <thead><tr><th>호</th><th>전용</th><th>방</th><th>층</th><th>보증금</th><th>월세</th></tr></thead>
+    ${[...byAddr].map(([addr, hs]) => {
+      const areas = hs.map((h) => h.area);
+      const span = Math.min(...areas) === Math.max(...areas)
+        ? `${areas[0]}㎡`
+        : `${Math.min(...areas)}~${Math.max(...areas)}㎡`;
+      return `<tbody>
+        <tr class="grp"><td colspan="6">
+          <span class="bldg">${addr}</span>
+          <span class="addr">${hs.length}호 · ${span} · ${hs[0].type}</span>
+        </td></tr>
+        ${hs.map((h) => `<tr>
+          <td>${h.ho}</td>
+          <td>${h.area}㎡</td>
+          <td>${h.rooms}</td>
+          <td>${h.floor}</td>
+          <td>${man(h.deposit)}</td>
+          <td>${h.rent.toLocaleString('ko-KR')}</td>
+        </tr>`).join('')}
+      </tbody>`;
+    }).join('')}
   </table>`;
   $('dlg').showModal();
 }
