@@ -79,6 +79,28 @@
   .err { background: #fff1f0; border: 1px solid #ffb4ae; color: var(--over); padding: 12px 14px; border-radius: 10px; font-size: 13px; }
   .skel { color: var(--mute); padding: 30px 0; text-align: center; }
   .note { color: var(--mute); font-size: 12px; margin-top: 10px; }
+
+  .unitbtn {
+    font: inherit; font-size: 13px; font-family: var(--mono); color: var(--cool);
+    background: none; border: 1px solid var(--line); border-radius: 6px;
+    padding: 2px 8px; cursor: pointer;
+  }
+  .unitbtn:hover { border-color: var(--cool); background: #f2f7fd; }
+
+  dialog {
+    border: 1px solid var(--line); border-radius: 14px; padding: 0;
+    max-width: min(760px, 92vw); width: 760px; max-height: 84vh;
+    background: var(--panel); color: var(--fg);
+  }
+  dialog::backdrop { background: rgba(20, 24, 30, .45); }
+  .dlg-head { display: flex; align-items: baseline; gap: 10px; padding: 18px 22px 12px; border-bottom: 1px solid var(--line); }
+  .dlg-head h2 { font-size: 16px; margin: 0; font-weight: 650; }
+  .dlg-head .meta { color: var(--mute); font-size: 12px; }
+  .dlg-head button { margin-left: auto; border: 0; background: none; font-size: 20px; line-height: 1; color: var(--mute); cursor: pointer; }
+  .dlg-body { overflow: auto; max-height: calc(84vh - 64px); padding: 0 22px 20px; }
+  .dlg-body table { margin-top: 0; min-width: 640px; }
+  .dlg-body th { position: sticky; top: 0; background: var(--panel); z-index: 1; padding-top: 12px; }
+  .addr { color: var(--mute); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -99,6 +121,15 @@
   </footer>
 </div>
 
+<dialog id="dlg">
+  <div class="dlg-head">
+    <h2 id="dlg-title"></h2>
+    <span class="meta" id="dlg-meta"></span>
+    <button type="button" aria-label="닫기" onclick="document.getElementById('dlg').close()">×</button>
+  </div>
+  <div class="dlg-body"><div class="scroll" id="dlg-body"></div></div>
+</dialog>
+
 <script type="module">
 const PINNED = '경기군포';
 const HISTORY = '/api/history';
@@ -110,6 +141,32 @@ const cls = (r) => (r >= 2 ? 'over' : r >= 1 ? 'hot' : 'cool');
 
 let closesAt = null;
 let hist = null;
+let houses = null;
+
+const man = (n) => `${Math.round(n / 10000).toLocaleString('ko-KR')}만`;
+
+// 공고 첨부 주택목록에서 구운 정적 파일. 매물 단위 경쟁률은 LH 가 공개하지 않아 물건 정보만 보여준다.
+function openHouses(dong) {
+  const list = houses?.[dong];
+  if (!list?.length) return;
+  $('dlg-title').textContent = dong;
+  $('dlg-meta').textContent = `공급 ${list.length}호 · 임대조건은 소득 80% 이하 기준`;
+  $('dlg-body').innerHTML = `<table>
+    <thead><tr><th>순번</th><th>주소</th><th>호</th><th>전용</th><th>방</th><th>층</th><th>보증금</th><th>월세</th></tr></thead>
+    <tbody>${list.map((h) => `<tr>
+      <td>${h.no}</td>
+      <td><span class="addr">${h.addr}</span></td>
+      <td>${h.ho}</td>
+      <td>${h.area}㎡</td>
+      <td>${h.rooms}</td>
+      <td>${h.floor}</td>
+      <td>${man(h.deposit)}</td>
+      <td>${h.rent.toLocaleString('ko-KR')}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+  $('dlg').showModal();
+}
+window.openHouses = openHouses;
 
 function countdown() {
   if (!closesAt) return;
@@ -191,7 +248,7 @@ function render(d) {
 
     <div class="scroll"><table>
       <thead><tr>
-        <th>단지</th><th>모집</th><th>신청</th><th>시간당</th><th>경쟁률</th>
+        <th>단지</th><th>매물</th><th>모집</th><th>신청</th><th>시간당</th><th>경쟁률</th>
         <th class="sparkcell">추이</th><th class="barcell"></th>
       </tr></thead>
       <tbody>${rows.map((u) => {
@@ -202,6 +259,7 @@ function render(d) {
         const color = isPin ? css('--pin') : r >= 2 ? css('--over') : r >= 1 ? css('--hot') : css('--cool');
         return `<tr class="${isPin ? 'pin' : ''}">
           <td><span class="name">${u.dong ?? ''}</span>${isPin ? '<span class="tag">목표</span>' : `<span class="sido">${(u.sido ?? '').replace('경기도', '')}</span>`}</td>
+          <td>${houses?.[u.dong]?.length ? `<button class="unitbtn" onclick="openHouses('${u.dong}')">${houses[u.dong].length}호</button>` : '<span class="speed">–</span>'}</td>
           <td>${fmt(u.quota)}</td>
           <td>${fmt(u.applied)}</td>
           <td class="speed ${sp ? 'up' : ''}">${sp == null ? '–' : sp > 0 ? `+${sp}` : sp}</td>
@@ -220,15 +278,18 @@ function render(d) {
 async function load() {
   try {
     // 추이는 리포에 쌓인 스냅샷을 직접 읽는다. 5분마다 재배포하지 않으려는 것.
-    const [live, h] = await Promise.all([
+    const [live, h, hs] = await Promise.all([
       fetch('/api/rate', { cache: 'no-store' }).then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
         return j;
       }),
       fetch(HISTORY, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      // 공고가 바뀌지 않는 한 고정이라 한 번만 받는다.
+      houses ?? fetch('/houses.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
     hist = h;
+    houses = hs ?? houses;
     render(live);
   } catch (e) {
     $('app').innerHTML = `<div class="err">불러오지 못했습니다 — ${e.message}</div>`;

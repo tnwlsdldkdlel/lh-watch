@@ -5,5 +5,8 @@
   "scripts": {
     "watch": "node lh.mjs 5",
     "test": "node test-alert.mjs"
+  },
+  "devDependencies": {
+    "xlsx": "^0.18.5"
   }
 }

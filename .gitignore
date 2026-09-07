@@ -9,3 +9,6 @@ db-password.txt
 .env
 data/
 supabase/.temp/
+node_modules
+houses.xlsx
+detail.html
