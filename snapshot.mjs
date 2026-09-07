@@ -1,42 +1,35 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { DEFAULT_PAN, snapshot } from './lh-core.mjs';
 import { checkAlerts, send } from './alert.mjs';
+import { configured, getState, insertSnapshot, latestSnapshot, saveState } from './db.mjs';
 
-const FILE = 'data/history.json';
-const KEEP = 3000;
+if (!configured()) {
+  console.error('SUPABASE_URL / SUPABASE_SERVICE_KEY 가 없다');
+  process.exit(1);
+}
 
-// 단지명을 스냅샷마다 반복하면 파일이 금방 커진다. 이름은 한 번만 두고 값은 인덱스로 맞춘다.
-let hist = { pan: DEFAULT_PAN.name, names: [], snaps: [], fired: {} };
-try {
-  hist = { fired: {}, ...JSON.parse(readFileSync(FILE, 'utf8')) };
-} catch {}
-
+const panId = DEFAULT_PAN.panId;
 const data = await snapshot();
+
+const [row, state] = await Promise.all([latestSnapshot(panId), getState(panId)]);
+const hist = { lastPin: state.last_pin ?? null, lastDigest: state.last_digest ?? null, fired: state.fired ?? {} };
 
 // 값이 안 변해도 시간 조건(정시 현황·마감 임박)은 걸리므로 기록 여부와 무관하게 먼저 본다.
 const alerts = checkAlerts(hist, data);
 await send(alerts);
 for (const a of alerts) Object.assign(hist, a.state);
 
-for (const u of data.units) if (!hist.names.includes(u.dong)) hist.names.push(u.dong);
+if (alerts.length) {
+  await saveState({ pan_id: panId, last_pin: hist.lastPin, last_digest: hist.lastDigest, fired: hist.fired });
+}
 
-const applied = hist.names.map((n) => data.units.find((u) => u.dong === n)?.applied ?? null);
-const last = hist.snaps.at(-1);
-const changed = !last || last.a !== data.total.applied || String(last.u) !== String(applied);
+// 같은 값을 5분마다 쌓으면 조회만 무거워진다.
+const changed =
+  !row || row.total_applied !== data.total.applied || JSON.stringify(row.units) !== JSON.stringify(data.units);
 
-if (!changed && !alerts.length) {
+if (!changed) {
   console.log(`변화 없음 (합계 ${data.total.applied}) — 기록 생략`);
   process.exit(0);
 }
 
-if (changed) {
-  hist.quotas = hist.names.map((n) => data.units.find((u) => u.dong === n)?.quota ?? 0);
-  hist.totalQuota = data.total.quota;
-  hist.schedule = data.schedule;
-  hist.snaps.push({ t: data.at, a: data.total.applied, u: applied });
-  hist.snaps = hist.snaps.slice(-KEEP);
-}
-
-mkdirSync('data', { recursive: true });
-writeFileSync(FILE, JSON.stringify(hist));
-console.log(`기록 ${hist.snaps.length}개 — 합계 ${data.total.applied}/${data.total.quota}`);
+await insertSnapshot(panId, data);
+console.log(`기록 — 합계 ${data.total.applied}/${data.total.quota}`);

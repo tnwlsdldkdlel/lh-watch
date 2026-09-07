@@ -5,3 +5,7 @@ node_modules
 
 .vercel
 resp.json
+db-password.txt
+.env
+data/
+supabase/.temp/

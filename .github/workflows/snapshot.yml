@@ -5,9 +5,6 @@ on:
     - cron: '*/5 * * * *' # GitHub 최소 간격이 5분이고, 부하에 따라 더 늦게 돌 수 있다
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 concurrency:
   group: snapshot
   cancel-in-progress: false
@@ -21,15 +18,9 @@ jobs:
         with:
           node-version: 20
 
+      # 기록은 Supabase 에 들어가므로 리포에 커밋할 것이 없다.
       - run: node snapshot.mjs
         env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-
-      - name: 변경분 커밋
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/history.json
-          git diff --cached --quiet && echo "변화 없음" && exit 0
-          git commit -m "chore: 경쟁률 스냅샷 $(date -u +'%Y-%m-%d %H:%MZ')"
-          git push
