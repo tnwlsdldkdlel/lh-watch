@@ -119,14 +119,17 @@ function countdown() {
   $('status').textContent = `마감까지 ${h}시간 ${String(m).padStart(2, '0')}분 ${String(s).padStart(2, '0')}초`;
 }
 
+// 값이 안 변하면 스냅샷을 남기지 않으므로 기록만으로는 최근 구간이 비어 보인다.
+// 지금 값을 항상 끝점으로 붙여야 "시간당"이 옛 구간으로 계산되지 않는다.
+const withNow = (pts, now) => (pts.at(-1)?.t === now.t ? pts : [...pts, now]);
+
 // 단지별 시계열. 이름이 아니라 인덱스로 저장돼 있어 names 로 되짚는다.
-function series(dong) {
-  if (!hist?.snaps?.length) return [];
-  const i = hist.names.indexOf(dong);
-  if (i < 0) return [];
-  return hist.snaps.map((s) => ({ t: Date.parse(s.t), v: s.u[i] })).filter((p) => p.v != null);
+function series(dong, now) {
+  const i = hist?.names?.indexOf(dong) ?? -1;
+  const past = i < 0 ? [] : hist.snaps.map((s) => ({ t: Date.parse(s.t), v: s.u[i] })).filter((p) => p.v != null);
+  return withNow(past, now);
 }
-const totalSeries = () => (hist?.snaps ?? []).map((s) => ({ t: Date.parse(s.t), v: s.a }));
+const totalSeries = (now) => withNow((hist?.snaps ?? []).map((s) => ({ t: Date.parse(s.t), v: s.a })), now);
 
 // 한 시간 전 값과의 차이. 스냅샷이 1시간치보다 짧으면 가진 만큼으로 환산한다.
 function perHour(pts) {
@@ -165,7 +168,8 @@ function render(d) {
 
   const total = d.total;
   const tr = rate(total.applied, total.quota);
-  const tSpeed = perHour(totalSeries());
+  const nowT = Date.parse(d.at);
+  const tSpeed = perHour(totalSeries({ t: nowT, v: total.applied }));
 
   const sorted = [...d.units].sort((a, b) => rate(b.applied, b.quota) - rate(a.applied, a.quota));
   const rows = [...sorted.filter((u) => u.dong === PINNED), ...sorted.filter((u) => u.dong !== PINNED)];
@@ -191,7 +195,7 @@ function render(d) {
       </tr></thead>
       <tbody>${rows.map((u) => {
         const r = rate(u.applied, u.quota);
-        const pts = series(u.dong);
+        const pts = series(u.dong, { t: nowT, v: u.applied });
         const sp = perHour(pts);
         const isPin = u.dong === PINNED;
         const color = isPin ? css('--pin') : r >= 2 ? css('--over') : r >= 1 ? css('--hot') : css('--cool');
