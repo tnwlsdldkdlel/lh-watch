@@ -1,0 +1,8 @@
+{
+  "name": "lh-watch",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "watch": "node lh.mjs 5"
+  }
+}

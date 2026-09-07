@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LH 실시간 경쟁률</title>
+<style>
+  :root {
+    --bg: #0e1116; --panel: #161b22; --line: #262d36;
+    --fg: #e6edf3; --mute: #7d8590;
+    --hot: #f0a02c; --over: #e5534b; --cool: #3d8bfd; --ok: #3fb950;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f6f8fa; --panel:#fff; --line:#d8dee4; --fg:#1f2328; --mute:#636c76; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+
+  header { margin-bottom: 20px; }
+  h1 { font-size: 17px; font-weight: 650; margin: 0 0 6px; letter-spacing: -.01em; }
+  .sub { color: var(--mute); font-size: 13px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); display: inline-block; }
+  .dot.closed { background: var(--mute); }
+
+  .summary {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px 20px; margin-bottom: 8px;
+  }
+  .stat { flex: 1; min-width: 110px; }
+  .stat b { display: block; font: 650 26px/1.15 var(--mono); letter-spacing: -.02em; }
+  .stat span { color: var(--mute); font-size: 12px; }
+  .stat .delta { color: var(--ok); font-size: 12px; font-family: var(--mono); }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+  th {
+    text-align: right; font-size: 11px; font-weight: 600; color: var(--mute);
+    padding: 0 8px 8px; border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  th:first-child { text-align: left; }
+  td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: right; font-family: var(--mono); font-size: 14px; }
+  td:first-child { text-align: left; font-family: inherit; }
+  tr:last-child td { border-bottom: 0; }
+  .name { font-weight: 550; }
+  .sido { color: var(--mute); font-size: 12px; font-weight: 400; margin-left: 6px; }
+  .delta { color: var(--ok); font-size: 12px; }
+  .rate { font-weight: 650; }
+  .rate.over { color: var(--over); }
+  .rate.hot { color: var(--hot); }
+  .rate.cool { color: var(--mute); }
+
+  /* 1.0:1 을 눈금 삼아 미달/초과를 한눈에 가른다. */
+  .bar { width: 100%; height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; position: relative; }
+  .bar i { display: block; height: 100%; background: var(--cool); border-radius: 3px; }
+  .bar.over i { background: var(--over); }
+  .bar.hot i { background: var(--hot); }
+  .barcell { width: 96px; padding-left: 12px; }
+
+  footer { margin-top: 22px; color: var(--mute); font-size: 12px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  a { color: var(--cool); }
+  .err { background: #3d1d1d; border: 1px solid var(--over); color: #ffb4ae; padding: 12px 14px; border-radius: 10px; font-size: 13px; }
+  .skel { color: var(--mute); padding: 30px 0; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title">LH 실시간 경쟁률</h1>
+    <div class="sub">
+      <span><span class="dot" id="dot"></span> <span id="status">불러오는 중…</span></span>
+      <span id="period"></span>
+    </div>
+  </header>
+
+  <div id="app"><div class="skel">불러오는 중…</div></div>
+
+  <footer>
+    <span id="updated"></span>
+    <span><a href="https://apply.lh.or.kr/lhapply/apply/wt/wrtanc/selectWrtancList.do?mi=1026" target="_blank" rel="noopener">LH청약플러스 원문</a></span>
+  </footer>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const rate = (a, q) => (q ? a / q : 0);
+const fmt = (n) => n.toLocaleString('ko-KR');
+const cls = (r) => (r >= 2 ? 'over' : r >= 1 ? 'hot' : 'cool');
+
+// 서버는 상태를 안 들고 있다. 증감은 이 브라우저에 남긴 직전 스냅샷으로 계산한다.
+const PREV = 'lh-prev';
+const loadPrev = () => { try { return JSON.parse(localStorage.getItem(PREV)) ?? {}; } catch { return {}; } };
+const savePrev = (m) => { try { localStorage.setItem(PREV, JSON.stringify(m)); } catch {} };
+
+let closesAt = null;
+
+function countdown() {
+  if (!closesAt) return;
+  const ms = closesAt - Date.now();
+  if (ms <= 0) { $('status').textContent = '접수 마감'; $('dot').className = 'dot closed'; return; }
+  const h = Math.floor(ms / 3.6e6), m = Math.floor(ms / 6e4) % 60, s = Math.floor(ms / 1000) % 60;
+  $('status').textContent = `마감까지 ${h}시간 ${String(m).padStart(2, '0')}분 ${String(s).padStart(2, '0')}초`;
+}
+
+function render(d) {
+  $('title').textContent = d.name;
+  if (d.schedule) {
+    closesAt = new Date(d.schedule.closesAt).getTime();
+    $('period').textContent = `접수 ${d.schedule.from} ~ ${d.schedule.to}`;
+    countdown();
+  }
+
+  const prev = loadPrev();
+  const next = {};
+  const total = d.total;
+  const tr = rate(total.applied, total.quota);
+  const tDelta = prev['합계'] != null ? total.applied - prev['합계'] : null;
+  next['합계'] = total.applied;
+
+  const rows = [...d.units].sort((a, b) => rate(b.applied, b.quota) - rate(a.applied, a.quota));
+
+  $('app').innerHTML = `
+    <div class="summary">
+      <div class="stat"><b>${tr.toFixed(2)}:1</b><span>전체 경쟁률</span></div>
+      <div class="stat"><b>${fmt(total.applied)}</b><span>신청건수</span>
+        ${tDelta ? `<span class="delta">+${tDelta} (직전 조회 대비)</span>` : ''}</div>
+      <div class="stat"><b>${fmt(total.quota)}</b><span>모집인원</span></div>
+      <div class="stat"><b>${rows.filter((u) => rate(u.applied, u.quota) >= 1).length}/${rows.length}</b><span>1:1 넘은 단지</span></div>
+    </div>
+
+    <table>
+      <thead><tr>
+        <th>단지</th><th>모집</th><th>신청</th><th>경쟁률</th><th class="barcell"></th>
+      </tr></thead>
+      <tbody>${rows.map((u) => {
+        const r = rate(u.applied, u.quota);
+        const dv = prev[u.dong] != null ? u.applied - prev[u.dong] : 0;
+        next[u.dong] = u.applied;
+        return `<tr>
+          <td><span class="name">${u.dong ?? ''}</span><span class="sido">${(u.sido ?? '').replace('경기도', '')}</span></td>
+          <td>${fmt(u.quota)}</td>
+          <td>${fmt(u.applied)}${dv > 0 ? ` <span class="delta">+${dv}</span>` : ''}</td>
+          <td class="rate ${cls(r)}">${r.toFixed(2)}</td>
+          <td class="barcell"><div class="bar ${cls(r)}"><i style="width:${Math.min(100, r * 50)}%"></i></div></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+
+  savePrev(next);
+  $('updated').textContent = `갱신 ${new Date(d.at).toLocaleTimeString('ko-KR')} · 60초마다 자동 갱신`;
+}
+
+async function load() {
+  try {
+    const res = await fetch('/api/rate', { cache: 'no-store' });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error ?? `HTTP ${res.status}`);
+    render(d);
+  } catch (e) {
+    $('app').innerHTML = `<div class="err">불러오지 못했습니다 — ${e.message}</div>`;
+    $('status').textContent = '오류';
+    $('dot').className = 'dot closed';
+  }
+}
+
+load();
+setInterval(load, 60_000);
+setInterval(countdown, 1000);
+</script>
+</body>
+</html>
