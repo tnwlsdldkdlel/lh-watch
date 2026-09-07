@@ -22,6 +22,8 @@ jobs:
           node-version: 20
 
       - run: node snapshot.mjs
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
 
       - name: 변경분 커밋
         run: |
