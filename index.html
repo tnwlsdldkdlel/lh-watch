@@ -4,23 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LH 실시간 경쟁률</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
   :root {
-    --bg: #0e1116; --panel: #161b22; --line: #262d36;
-    --fg: #e6edf3; --mute: #7d8590;
-    --hot: #f0a02c; --over: #e5534b; --cool: #3d8bfd; --ok: #3fb950;
-    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, monospace;
-  }
-  @media (prefers-color-scheme: light) {
-    :root { --bg:#f6f8fa; --panel:#fff; --line:#d8dee4; --fg:#1f2328; --mute:#636c76; }
+    color-scheme: light; /* 시스템이 다크여도 라이트로 고정 */
+    --bg: #f6f8fa; --panel: #fff; --line: #d8dee4;
+    --fg: #1f2328; --mute: #636c76;
+    --hot: #bf8700; --over: #d1242f; --cool: #0969da; --ok: #1a7f37;
+    --pin: #8250df;
+    --mono: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--bg); color: var(--fg);
-    font: 15px/1.5 -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    font: 15px/1.5 "Pretendard Variable", Pretendard, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
     -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums; /* 숫자 자리폭 고정 — 표가 흔들리지 않게 */
   }
-  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 24px 16px 64px; }
 
   header { margin-bottom: 20px; }
   h1 { font-size: 17px; font-weight: 650; margin: 0 0 6px; letter-spacing: -.01em; }
@@ -31,41 +33,52 @@
   .summary {
     display: flex; gap: 12px; flex-wrap: wrap;
     background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-    padding: 18px 20px; margin-bottom: 8px;
+    padding: 18px 20px;
   }
-  .stat { flex: 1; min-width: 110px; }
+  .stat { flex: 1; min-width: 104px; }
   .stat b { display: block; font: 650 26px/1.15 var(--mono); letter-spacing: -.02em; }
-  .stat span { color: var(--mute); font-size: 12px; }
-  .stat .delta { color: var(--ok); font-size: 12px; font-family: var(--mono); }
+  .stat span { color: var(--mute); font-size: 12px; display: block; }
+  .stat .delta { color: var(--ok); font-family: var(--mono); }
 
-  table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; margin-top: 18px; min-width: 620px; }
   th {
     text-align: right; font-size: 11px; font-weight: 600; color: var(--mute);
     padding: 0 8px 8px; border-bottom: 1px solid var(--line); white-space: nowrap;
   }
   th:first-child { text-align: left; }
-  td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: right; font-family: var(--mono); font-size: 14px; }
+  td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: right; font-family: var(--mono); font-size: 14px; white-space: nowrap; }
   td:first-child { text-align: left; font-family: inherit; }
   tr:last-child td { border-bottom: 0; }
   .name { font-weight: 550; }
   .sido { color: var(--mute); font-size: 12px; font-weight: 400; margin-left: 6px; }
   .delta { color: var(--ok); font-size: 12px; }
+  .speed { color: var(--mute); font-size: 13px; }
+  .speed.up { color: var(--fg); }
   .rate { font-weight: 650; }
   .rate.over { color: var(--over); }
   .rate.hot { color: var(--hot); }
   .rate.cool { color: var(--mute); }
 
+  /* 노리는 단지는 정렬과 무관하게 맨 위에 붙여둔다. */
+  tr.pin td { background: #faf7ff; }
+  tr.pin td:first-child { box-shadow: inset 3px 0 0 var(--pin); }
+  .tag { font-size: 10px; font-weight: 700; color: var(--pin); border: 1px solid var(--pin); border-radius: 4px; padding: 1px 4px; margin-left: 6px; vertical-align: 1px; }
+
   /* 1.0:1 을 눈금 삼아 미달/초과를 한눈에 가른다. */
-  .bar { width: 100%; height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; position: relative; }
+  .bar { width: 100%; height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
   .bar i { display: block; height: 100%; background: var(--cool); border-radius: 3px; }
   .bar.over i { background: var(--over); }
   .bar.hot i { background: var(--hot); }
-  .barcell { width: 96px; padding-left: 12px; }
+  .barcell { width: 90px; padding-left: 12px; }
+  .sparkcell { width: 78px; }
+  svg.spark { display: block; overflow: visible; }
 
   footer { margin-top: 22px; color: var(--mute); font-size: 12px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
   a { color: var(--cool); }
-  .err { background: #3d1d1d; border: 1px solid var(--over); color: #ffb4ae; padding: 12px 14px; border-radius: 10px; font-size: 13px; }
+  .err { background: #fff1f0; border: 1px solid #ffb4ae; color: var(--over); padding: 12px 14px; border-radius: 10px; font-size: 13px; }
   .skel { color: var(--mute); padding: 30px 0; text-align: center; }
+  .note { color: var(--mute); font-size: 12px; margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -87,17 +100,16 @@
 </div>
 
 <script type="module">
+const PINNED = '경기군포';
+const HISTORY = 'https://raw.githubusercontent.com/tnwlsdldkdlel/lh-watch/main/data/history.json';
+
 const $ = (id) => document.getElementById(id);
 const rate = (a, q) => (q ? a / q : 0);
 const fmt = (n) => n.toLocaleString('ko-KR');
 const cls = (r) => (r >= 2 ? 'over' : r >= 1 ? 'hot' : 'cool');
 
-// 서버는 상태를 안 들고 있다. 증감은 이 브라우저에 남긴 직전 스냅샷으로 계산한다.
-const PREV = 'lh-prev';
-const loadPrev = () => { try { return JSON.parse(localStorage.getItem(PREV)) ?? {}; } catch { return {}; } };
-const savePrev = (m) => { try { localStorage.setItem(PREV, JSON.stringify(m)); } catch {} };
-
 let closesAt = null;
+let hist = null;
 
 function countdown() {
   if (!closesAt) return;
@@ -105,6 +117,42 @@ function countdown() {
   if (ms <= 0) { $('status').textContent = '접수 마감'; $('dot').className = 'dot closed'; return; }
   const h = Math.floor(ms / 3.6e6), m = Math.floor(ms / 6e4) % 60, s = Math.floor(ms / 1000) % 60;
   $('status').textContent = `마감까지 ${h}시간 ${String(m).padStart(2, '0')}분 ${String(s).padStart(2, '0')}초`;
+}
+
+// 단지별 시계열. 이름이 아니라 인덱스로 저장돼 있어 names 로 되짚는다.
+function series(dong) {
+  if (!hist?.snaps?.length) return [];
+  const i = hist.names.indexOf(dong);
+  if (i < 0) return [];
+  return hist.snaps.map((s) => ({ t: Date.parse(s.t), v: s.u[i] })).filter((p) => p.v != null);
+}
+const totalSeries = () => (hist?.snaps ?? []).map((s) => ({ t: Date.parse(s.t), v: s.a }));
+
+// 한 시간 전 값과의 차이. 스냅샷이 1시간치보다 짧으면 가진 만큼으로 환산한다.
+function perHour(pts) {
+  if (pts.length < 2) return null;
+  const now = pts.at(-1);
+  const target = now.t - 3.6e6;
+  const base = pts.find((p) => p.t >= target) ?? pts[0];
+  const hours = (now.t - base.t) / 3.6e6;
+  if (hours < 0.08) return null; // 5분도 안 되는 구간으로 시간당을 말하면 과장된다
+  return Math.round((now.v - base.v) / hours);
+}
+
+function spark(pts, color) {
+  if (pts.length < 2) return '<span class="speed">–</span>';
+  const w = 70, h = 20;
+  const xs = pts.map((p) => p.t), ys = pts.map((p) => p.v);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  const y1 = Math.max(...ys), y0 = 0; // 0 을 바닥으로 고정해야 증가폭이 과장되지 않는다
+  const px = (t) => (x1 === x0 ? w : ((t - x0) / (x1 - x0)) * w);
+  const py = (v) => h - (y1 === y0 ? 0 : ((v - y0) / (y1 - y0)) * h);
+  const d = pts.map((p) => `${px(p.t).toFixed(1)},${py(p.v).toFixed(1)}`).join(' ');
+  const last = pts.at(-1);
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
+    <polyline points="${d}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
+    <circle cx="${px(last.t).toFixed(1)}" cy="${py(last.v).toFixed(1)}" r="2" fill="${color}"/>
+  </svg>`;
 }
 
 function render(d) {
@@ -115,52 +163,68 @@ function render(d) {
     countdown();
   }
 
-  const prev = loadPrev();
-  const next = {};
   const total = d.total;
   const tr = rate(total.applied, total.quota);
-  const tDelta = prev['합계'] != null ? total.applied - prev['합계'] : null;
-  next['합계'] = total.applied;
+  const tSpeed = perHour(totalSeries());
 
-  const rows = [...d.units].sort((a, b) => rate(b.applied, b.quota) - rate(a.applied, a.quota));
+  const sorted = [...d.units].sort((a, b) => rate(b.applied, b.quota) - rate(a.applied, a.quota));
+  const rows = [...sorted.filter((u) => u.dong === PINNED), ...sorted.filter((u) => u.dong !== PINNED)];
+  const pinRank = sorted.findIndex((u) => u.dong === PINNED) + 1;
+  const pin = sorted.find((u) => u.dong === PINNED);
+
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
   $('app').innerHTML = `
     <div class="summary">
       <div class="stat"><b>${tr.toFixed(2)}:1</b><span>전체 경쟁률</span></div>
       <div class="stat"><b>${fmt(total.applied)}</b><span>신청건수</span>
-        ${tDelta ? `<span class="delta">+${tDelta} (직전 조회 대비)</span>` : ''}</div>
+        ${tSpeed != null ? `<span class="delta">시간당 +${tSpeed}건</span>` : ''}</div>
       <div class="stat"><b>${fmt(total.quota)}</b><span>모집인원</span></div>
-      <div class="stat"><b>${rows.filter((u) => rate(u.applied, u.quota) >= 1).length}/${rows.length}</b><span>1:1 넘은 단지</span></div>
+      ${pin ? `<div class="stat"><b style="color:var(--pin)">${rate(pin.applied, pin.quota).toFixed(2)}:1</b>
+        <span>${PINNED} · 경쟁률 ${pinRank}위/${sorted.length}</span></div>` : ''}
     </div>
 
-    <table>
+    <div class="scroll"><table>
       <thead><tr>
-        <th>단지</th><th>모집</th><th>신청</th><th>경쟁률</th><th class="barcell"></th>
+        <th>단지</th><th>모집</th><th>신청</th><th>시간당</th><th>경쟁률</th>
+        <th class="sparkcell">추이</th><th class="barcell"></th>
       </tr></thead>
       <tbody>${rows.map((u) => {
         const r = rate(u.applied, u.quota);
-        const dv = prev[u.dong] != null ? u.applied - prev[u.dong] : 0;
-        next[u.dong] = u.applied;
-        return `<tr>
-          <td><span class="name">${u.dong ?? ''}</span><span class="sido">${(u.sido ?? '').replace('경기도', '')}</span></td>
+        const pts = series(u.dong);
+        const sp = perHour(pts);
+        const isPin = u.dong === PINNED;
+        const color = isPin ? css('--pin') : r >= 2 ? css('--over') : r >= 1 ? css('--hot') : css('--cool');
+        return `<tr class="${isPin ? 'pin' : ''}">
+          <td><span class="name">${u.dong ?? ''}</span>${isPin ? '<span class="tag">목표</span>' : `<span class="sido">${(u.sido ?? '').replace('경기도', '')}</span>`}</td>
           <td>${fmt(u.quota)}</td>
-          <td>${fmt(u.applied)}${dv > 0 ? ` <span class="delta">+${dv}</span>` : ''}</td>
+          <td>${fmt(u.applied)}</td>
+          <td class="speed ${sp ? 'up' : ''}">${sp == null ? '–' : sp > 0 ? `+${sp}` : sp}</td>
           <td class="rate ${cls(r)}">${r.toFixed(2)}</td>
+          <td class="sparkcell">${spark(pts, color)}</td>
           <td class="barcell"><div class="bar ${cls(r)}"><i style="width:${Math.min(100, r * 50)}%"></i></div></td>
         </tr>`;
       }).join('')}</tbody>
-    </table>`;
+    </table></div>
+    ${hist?.snaps?.length ? `<p class="note">추이는 5분마다 기록된 스냅샷 ${hist.snaps.length}개 기준입니다.</p>`
+      : `<p class="note">추이 기록이 아직 없습니다 — 첫 스냅샷이 쌓이면 표시됩니다.</p>`}`;
 
-  savePrev(next);
   $('updated').textContent = `갱신 ${new Date(d.at).toLocaleTimeString('ko-KR')} · 60초마다 자동 갱신`;
 }
 
 async function load() {
   try {
-    const res = await fetch('/api/rate', { cache: 'no-store' });
-    const d = await res.json();
-    if (!res.ok) throw new Error(d.error ?? `HTTP ${res.status}`);
-    render(d);
+    // 추이는 리포에 쌓인 스냅샷을 직접 읽는다. 5분마다 재배포하지 않으려는 것.
+    const [live, h] = await Promise.all([
+      fetch('/api/rate', { cache: 'no-store' }).then(async (r) => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+        return j;
+      }),
+      fetch(`${HISTORY}?t=${Math.floor(Date.now() / 60000)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]);
+    hist = h;
+    render(live);
   } catch (e) {
     $('app').innerHTML = `<div class="err">불러오지 못했습니다 — ${e.message}</div>`;
     $('status').textContent = '오류';

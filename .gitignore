@@ -2,3 +2,6 @@ log.csv
 node_modules
 .vercel
 .vscode
+
+.vercel
+resp.json
