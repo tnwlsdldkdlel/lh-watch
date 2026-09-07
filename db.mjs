@@ -34,13 +34,3 @@ export const latestSnapshot = async (panId) =>
 // 시간당 계산에 쓰므로 최근 구간만 있으면 된다.
 export const recentSnapshots = (panId, hours = 72) =>
   rest(`snapshots?pan_id=eq.${panId}&at=gte.${new Date(Date.now() - hours * 3.6e6).toISOString()}&order=at.asc&select=at,total_applied,units`);
-
-export const getState = async (panId) =>
-  (await rest(`alert_state?pan_id=eq.${panId}&limit=1`))[0] ?? { pan_id: panId, fired: {} };
-
-export const saveState = (state) =>
-  rest('alert_state?on_conflict=pan_id', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates' },
-    body: JSON.stringify({ ...state, updated_at: new Date().toISOString() }),
-  });

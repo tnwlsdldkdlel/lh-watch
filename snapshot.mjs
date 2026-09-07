@@ -8,4 +8,3 @@ if (!configured()) {
 
 const r = await runSnapshot();
 console.log(r.changed ? `기록 — 합계 ${r.applied}/${r.quota}` : `변화 없음 (합계 ${r.applied}) — 기록 생략`);
-if (r.alerts.length) console.log('알림:', r.alerts.join(', '));

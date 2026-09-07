@@ -12,8 +12,7 @@ LH 상세 페이지에 신청건수가 공개돼 있어 로그인이 필요 없�
 | 경로 | 역할 |
 |---|---|
 | `lh-core.mjs` | 목록으로 세션 발급 → 상세 POST → 신청건수·접수기간 파싱 |
-| `snapshot.mjs` | 스냅샷 적재 + 알림 판정 (Actions 가 5분마다 실행) |
-| `alert.mjs` | 알림 조건과 ntfy 발송 |
+| `snapshot.mjs` | 스냅샷 적재 (pg_cron 이 5분마다 호출) |
 | `db.mjs` | Supabase REST 호출 |
 | `api/rate.js` | 현재값 (LH 직접 조회, 30초 캐시) |
 | `api/history.js` | 추이 (Supabase 조회) |
@@ -21,7 +20,7 @@ LH 상세 페이지에 신청건수가 공개돼 있어 로그인이 필요 없�
 
 ## 환경변수
 
-`SUPABASE_URL` · `SUPABASE_SERVICE_KEY` · `NTFY_TOPIC`
+`SUPABASE_URL` · `SUPABASE_SERVICE_KEY` · `CRON_SECRET`
 → GitHub Secrets 와 Vercel 환경변수에 등록돼 있다. `.env` 는 커밋하지 않는다.
 
 ## 다른 공고 보기
