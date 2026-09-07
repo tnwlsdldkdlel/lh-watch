@@ -3,7 +3,6 @@
   --bg: #f6f8fa; --panel: #fff; --line: #d8dee4;
   --fg: #1f2328; --mute: #636c76;
   --hot: #bf8700; --over: #d1242f; --cool: #0969da; --ok: #1a7f37;
-  --pin: #8250df;
   --mono: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
 }
 * { box-sizing: border-box; }
@@ -53,11 +52,7 @@ tr:last-child td { border-bottom: 0; }
 .rate.hot { color: var(--hot); }
 .rate.cool { color: var(--mute); }
 
-/* 노리는 단지는 순위대로 두되 색으로 찾을 수 있게 한다. */
-tr.pin td { background: #faf7ff; }
-tr.pin td:first-child { box-shadow: inset 3px 0 0 var(--pin); }
 .rank { color: var(--mute); font-size: 13px; width: 34px; text-align: left; }
-tr.pin .rank, tr.pin .name { color: var(--pin); }
 
 /* 1.0:1 을 눈금 삼아 미달/초과를 한눈에 가른다. */
 .bar { width: 100%; height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }

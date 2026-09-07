@@ -36,7 +36,6 @@
 </dialog>
 
 <script type="module">
-const PINNED = '경기군포';
 const HISTORY = '/api/history';
 
 const $ = (id) => document.getElementById(id);
@@ -155,8 +154,6 @@ function render(d) {
 
   const sorted = [...d.units].sort((a, b) => rate(b.applied, b.quota) - rate(a.applied, a.quota));
   const rows = sorted;
-  const pinRank = sorted.findIndex((u) => u.dong === PINNED) + 1;
-  const pin = sorted.find((u) => u.dong === PINNED);
 
   const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
@@ -166,8 +163,7 @@ function render(d) {
       <div class="stat"><b>${fmt(total.applied)}</b><span>신청건수</span>
         ${tSpeed != null ? `<span class="delta">시간당 +${tSpeed}건</span>` : ''}</div>
       <div class="stat"><b>${fmt(total.quota)}</b><span>모집인원</span></div>
-      ${pin ? `<div class="stat"><b style="color:var(--pin)">${rate(pin.applied, pin.quota).toFixed(2)}:1</b>
-        <span>${PINNED} · 경쟁률 ${pinRank}위/${sorted.length}</span></div>` : ''}
+      <div class="stat"><b>${rows.filter((u) => rate(u.applied, u.quota) >= 1).length}/${rows.length}</b><span>1:1 넘은 단지</span></div>
     </div>
 
     <div class="scroll"><table class="ranks">
@@ -179,9 +175,8 @@ function render(d) {
         const r = rate(u.applied, u.quota);
         const pts = series(u.dong, { t: nowT, v: u.applied });
         const sp = perHour(pts);
-        const isPin = u.dong === PINNED;
-        const color = isPin ? css('--pin') : r >= 2 ? css('--over') : r >= 1 ? css('--hot') : css('--cool');
-        return `<tr class="${isPin ? 'pin' : ''}">
+        const color = r >= 2 ? css('--over') : r >= 1 ? css('--hot') : css('--cool');
+        return `<tr>
           <td class="rank">${i + 1}</td>
           <td><span class="name">${u.dong ?? ''}</span><span class="sido">${(u.sido ?? '').replace('경기도', '')}</span></td>
           <td>${houses?.[u.dong]?.length ? `<button class="unitbtn" onclick="openHouses('${u.dong}')">${houses[u.dong].length}호</button>` : '<span class="speed">–</span>'}</td>
