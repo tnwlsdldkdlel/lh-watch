@@ -46,8 +46,68 @@ const cls = (r) => (r >= 2 ? 'over' : r >= 1 ? 'hot' : 'cool');
 let closesAt = null;
 let hist = null;
 let houses = null;
+let past = null;
+let curSi = {};
 
 const man = (n) => `${Math.round(n / 10000).toLocaleString('ko-KR')}만`;
+
+const median = (xs) => {
+  const a = [...xs].sort((x, y) => x - y);
+  return a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2;
+};
+const ratio = (v) => v.a / v.q;
+const pastRates = (si) => (past?.si?.[si] ?? []).filter(Boolean).map(ratio);
+const bar = (r) => `<div class="bar ${cls(r)}"><i style="width:${Math.min(100, r * 10)}%"></i></div>`;
+
+// past.json 은 지난 공고를 긁어 구운 정적 파일이라 지자체 단위다 — 단지가 아니라 시로 묶어 본다.
+function openPast(si) {
+  const row = past?.si?.[si];
+  if (!row) return;
+  const done = row.filter(Boolean);
+  const now = curSi[si];
+  $('dlg-title').textContent = si;
+  $('dlg-meta').textContent = `지난 ${done.length}회 중앙 ${median(done.map(ratio)).toFixed(1)}:1`
+    + (now ? ` · 이번 공급 ${fmt(now.q)}호` : '');
+  $('dlg-body').innerHTML = `<table class="past">
+    <thead><tr><th>회차</th><th>마감</th><th>공급</th><th>신청</th><th>경쟁률</th><th class="barcell"></th></tr></thead>
+    <tbody>
+      ${past.rounds.map((rd, i) => {
+        const v = row[i];
+        if (!v) return `<tr class="none"><td>${rd.label}</td><td>${rd.ed}</td><td colspan="4">공급 없음</td></tr>`;
+        const r = ratio(v);
+        return `<tr><td>${rd.label}</td><td>${rd.ed}</td><td>${fmt(v.q)}</td><td>${fmt(v.a)}</td>
+          <td class="rate ${cls(r)}">${r.toFixed(1)}</td><td class="barcell">${bar(r)}</td></tr>`;
+      }).join('')}
+      ${now ? `<tr class="now"><td>이번</td><td>진행중</td><td>${fmt(now.q)}</td><td>${fmt(now.a)}</td>
+        <td class="rate ${cls(ratio(now))}">${ratio(now).toFixed(1)}</td>
+        <td class="barcell">${bar(ratio(now))}</td></tr>` : ''}
+    </tbody></table>
+    <p class="note">공급 물량이 많은 회차일수록 배수가 낮게 나옵니다 — 공급호수를 같이 보세요.</p>`;
+  $('dlg').showModal();
+}
+window.openPast = openPast;
+
+function openPastAll() {
+  if (!past) return;
+  const sis = Object.keys(past.si).sort((a, b) => median(pastRates(b)) - median(pastRates(a)));
+  $('dlg-title').textContent = `${past.region} 전년도 경쟁률 이력`;
+  $('dlg-meta').textContent = `${past.rounds.length}회차 · 지자체 ${sis.length}곳`;
+  $('dlg-body').innerHTML = `<table class="matrix">
+    <thead><tr><th>지자체</th><th>이번</th><th>중앙</th>${past.rounds.map((r) => `<th>${r.label}</th>`).join('')}</tr></thead>
+    <tbody>${sis.map((si) => {
+      const now = curSi[si];
+      const m = median(pastRates(si));
+      return `<tr${now ? '' : ' class="none"'}>
+        <td>${si}</td>
+        <td>${now ? `<span class="rate ${cls(ratio(now))}">${ratio(now).toFixed(1)}</span> <span class="sido">${fmt(now.q)}호</span>` : '–'}</td>
+        <td class="rate ${cls(m)}">${m.toFixed(1)}</td>
+        ${past.si[si].map((v) => (v ? `<td title="공급 ${fmt(v.q)}호 · 신청 ${fmt(v.a)}건">${ratio(v).toFixed(1)}</td>` : '<td class="speed">–</td>')).join('')}
+      </tr>`;
+    }).join('')}</tbody></table>
+    <p class="note">현재 공고에 없는 지자체는 흐리게 표시됩니다. 정정공고는 같은 회차로 합쳤습니다.</p>`;
+  $('dlg').showModal();
+}
+window.openPastAll = openPastAll;
 
 // 공고 첨부 주택목록에서 구운 정적 파일. 매물 단위 경쟁률은 LH 가 공개하지 않아 물건 정보만 보여준다.
 function openHouses(dong) {
@@ -104,8 +164,8 @@ const withNow = (pts, now) => (pts.at(-1)?.t === now.t ? pts : [...pts, now]);
 // 단지별 시계열. 이름이 아니라 인덱스로 저장돼 있어 names 로 되짚는다.
 function series(dong, now) {
   const i = hist?.names?.indexOf(dong) ?? -1;
-  const past = i < 0 ? [] : hist.snaps.map((s) => ({ t: Date.parse(s.t), v: s.u[i] })).filter((p) => p.v != null);
-  return withNow(past, now);
+  const pts = i < 0 ? [] : hist.snaps.map((s) => ({ t: Date.parse(s.t), v: s.u[i] })).filter((p) => p.v != null);
+  return withNow(pts, now);
 }
 const totalSeries = (now) => withNow((hist?.snaps ?? []).map((s) => ({ t: Date.parse(s.t), v: s.a })), now);
 
@@ -152,6 +212,13 @@ function render(d) {
   const nowT = Date.parse(d.at);
   const tSpeed = perHour(totalSeries({ t: nowT, v: total.applied }));
 
+  curSi = {};
+  for (const u of d.units) {
+    (curSi[u.si] ??= { q: 0, a: 0 });
+    curSi[u.si].q += u.quota;
+    curSi[u.si].a += u.applied;
+  }
+
   const sorted = [...d.units].sort((a, b) => rate(b.applied, b.quota) - rate(a.applied, a.quota));
   const rows = sorted;
 
@@ -168,7 +235,7 @@ function render(d) {
 
     <div class="scroll"><table class="ranks">
       <thead><tr>
-        <th>순위</th><th>단지</th><th>매물</th><th>모집</th><th>신청</th><th>시간당</th><th>경쟁률</th>
+        <th>순위</th><th>단지</th><th>매물</th><th>모집</th><th>신청</th><th>시간당</th><th>경쟁률</th><th>과거</th>
         <th class="sparkcell">추이</th><th class="barcell"></th>
       </tr></thead>
       <tbody>${rows.map((u, i) => {
@@ -184,13 +251,19 @@ function render(d) {
           <td>${fmt(u.applied)}</td>
           <td class="speed ${sp > 0 ? 'up' : ''}">${sp == null ? '–' : sp > 0 ? `+${sp}` : sp}</td>
           <td class="rate ${cls(r)}">${r.toFixed(2)}</td>
+          <td>${pastRates(u.si).length
+            ? `<button class="unitbtn" onclick="openPast('${u.si}')">${median(pastRates(u.si)).toFixed(1)}</button>`
+            : '<span class="speed">–</span>'}</td>
           <td class="sparkcell">${spark(pts, color)}</td>
           <td class="barcell"><div class="bar ${cls(r)}"><i style="width:${Math.min(100, r * 50)}%"></i></div></td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>
-    ${hist?.snaps?.length ? `<p class="note">추이는 5분마다 기록된 스냅샷 ${hist.snaps.length}개 기준입니다.</p>`
-      : `<p class="note">추이 기록이 아직 없습니다 — 첫 스냅샷이 쌓이면 표시됩니다.</p>`}`;
+    <p class="note">
+      ${hist?.snaps?.length ? `추이는 5분마다 기록된 스냅샷 ${hist.snaps.length}개 기준입니다.`
+        : '추이 기록이 아직 없습니다 — 첫 스냅샷이 쌓이면 표시됩니다.'}
+      ${past ? `<button class="unitbtn" onclick="openPastAll()">전년도 경쟁률 이력 ${past.rounds.length}회차 →</button>` : ''}
+    </p>`;
 
   $('updated').textContent = `갱신 ${new Date(d.at).toLocaleTimeString('ko-KR')} · 60초마다 자동 갱신`;
 }
@@ -198,7 +271,7 @@ function render(d) {
 async function load() {
   try {
     // 추이는 리포에 쌓인 스냅샷을 직접 읽는다. 5분마다 재배포하지 않으려는 것.
-    const [live, h, hs] = await Promise.all([
+    const [live, h, hs, pa] = await Promise.all([
       fetch('/api/rate', { cache: 'no-store' }).then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
@@ -207,9 +280,11 @@ async function load() {
       fetch(HISTORY, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
       // 공고가 바뀌지 않는 한 고정이라 한 번만 받는다.
       houses ?? fetch('/houses.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      past ?? fetch('/past.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ]);
     hist = h;
     houses = hs ?? houses;
+    past = pa ?? past;
     render(live);
   } catch (e) {
     $('app').innerHTML = `<div class="err">불러오지 못했습니다 — ${e.message}</div>`;

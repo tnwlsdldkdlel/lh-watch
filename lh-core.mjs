@@ -50,10 +50,13 @@ export function parse(html) {
   const [numTable, nameTable] = tablesAfter(html, '공급정보 : 지자체명', 2);
   if (!numTable || !nameTable) return null;
 
+  // 마감 공고는 버튼이 '청약신청마감' 이라 접두사로 잡는다 — 과거 이력도 같은 표에서 읽는다.
   const units = numTable
-    .filter((c) => c.includes('청약신청하기') || c.includes('청약신청전'))
-    .map((c) => c.filter((x) => /^[\d,]+$/.test(x)).map((x) => +x.replace(/,/g, '')))
-    .map(([quota, applied]) => ({ quota, applied }));
+    .filter((c) => c.some((x) => x.startsWith('청약신청')))
+    .map((c) => {
+      const [quota, applied] = c.filter((x) => /^[\d,]+$/.test(x)).map((x) => +x.replace(/,/g, ''));
+      return { si: c[0].match(/\(([^)]+)\)/)?.[1] ?? c[0], quota, applied };
+    });
 
   const names = nameTable.slice(1).map(([sido, dong]) => ({ sido, dong }));
   const total = numTable.find((c) => c[0] === '합계')?.filter((x) => /^[\d,]+$/.test(x)) ?? [];

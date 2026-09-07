@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "watch": "node lh.mjs 5"
+    "watch": "node lh.mjs 5",
+    "test": "node --test"
   },
   "devDependencies": {
     "pg": "^8.23.0",
