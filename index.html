@@ -115,7 +115,9 @@ function perHour(pts) {
   if (pts.length < 2) return null;
   const now = pts.at(-1);
   const target = now.t - 3.6e6;
-  const base = pts.find((p) => p.t >= target) ?? pts[0];
+  // 1시간 이전 것 중 가장 최근 점. 앞에서부터 찾으면 기록이 모두 1시간보다 오래됐을 때
+  // 방금 붙인 현재 점을 스스로 기준으로 잡아 구간이 0 이 된다.
+  const base = [...pts].reverse().find((p) => p.t <= target) ?? pts[0];
   const hours = (now.t - base.t) / 3.6e6;
   // 짧은 구간을 시간당으로 곱하면 크게 부풀려진다. 10분에 1건이 "+6" 으로 보이던 문제.
   if (hours < 0.34) return null;
