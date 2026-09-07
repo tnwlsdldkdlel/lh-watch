@@ -59,11 +59,12 @@ export function parse(html) {
     });
 
   const names = nameTable.slice(1).map(([sido, dong]) => ({ sido, dong }));
-  const total = numTable.find((c) => c[0] === '합계')?.filter((x) => /^[\d,]+$/.test(x)) ?? [];
+  // 천 단위 쉼표를 안 떼면 1,000 건을 넘는 순간 합계가 NaN 이 된다.
+  const total = (numTable.find((c) => c[0] === '합계')?.filter((x) => /^[\d,]+$/.test(x)) ?? []).map((x) => +x.replace(/,/g, ''));
   if (!units.length) return null;
 
   return {
-    total: { quota: +total[0], applied: +total[1] },
+    total: { quota: total[0], applied: total[1] },
     units: units.map((u, i) => ({ ...names[i], ...u })),
   };
 }

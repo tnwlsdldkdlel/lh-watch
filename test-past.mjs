@@ -8,14 +8,14 @@ const row = (si, q, a, btn) =>
 
 const html = (...rows) => `<table><caption>공급정보 : 지자체명</caption>
   <tr><th>지자체명</th><th>주택정보</th><th>주택유형</th><th>공급호수</th><th>모집인원</th><th>신청건수</th><th>인터넷청약</th></tr>
-  <tr><td>합계</td><td></td><td>26</td><td>200</td></tr>
+  <tr><td>합계</td><td></td><td>26</td><td>1,200</td></tr>
   ${rows.join('')}</table>
   <table><tr><th>지자체명</th><th>동주소</th></tr>
   <tr><td>경기도</td><td>수원권선</td></tr><tr><td>경기도</td><td>경기성남</td></tr></table>`;
 
 test('마감 공고도 신청건수를 읽는다', () => {
   const d = parse(html(row('경기수원시', 6, 138, '청약신청마감'), row('경기성남시', 20, 62, '청약신청마감')));
-  assert.deepEqual(d.total, { quota: 26, applied: 200 });
+  assert.deepEqual(d.total, { quota: 26, applied: 1200 }); // 천 단위 쉼표
   assert.deepEqual(d.units[0], { sido: '경기도', dong: '수원권선', si: '경기수원시', quota: 6, applied: 138 });
 });
 
